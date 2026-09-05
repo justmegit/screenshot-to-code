@@ -1,0 +1,33 @@
+# Deployment stack for Coolify (screenshot.blueserenity.pt).
+#
+# The frontend image builds the Vite app into static files and serves them
+# through nginx, which also proxies /generate-code, /api and /local-assets to
+# the backend. Everything therefore lives on a single origin and the frontend
+# needs no VITE_*_BACKEND_URL. Basic auth is enforced by nginx; the evals UI
+# is not proxied because it expects local repo folders.
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: poetry run uvicorn main:app --host 0.0.0.0 --port 7001
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      - IS_PROD=true
+    expose:
+      - "7001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.coolify
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      - SERVICE_FQDN_FRONTEND_80
+      - BASIC_AUTH_HTPASSWD=${BASIC_AUTH_HTPASSWD}
+    expose:
+      - "80"
