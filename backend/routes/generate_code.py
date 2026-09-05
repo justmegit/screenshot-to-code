@@ -18,6 +18,7 @@ from config import (
     NUM_VARIANTS_VIDEO,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
+    OPENROUTER_API_KEY,
     REPLICATE_API_KEY,
 )
 from custom_types import InputMode
@@ -458,6 +459,11 @@ class ModelSelectionStage:
         gemini_api_key: str | None,
     ) -> List[Llm]:
         """Simple model cycling that scales with num_variants"""
+
+        # One OpenRouter key reaches every provider, so the model sets that
+        # assume all three keys apply.
+        if OPENROUTER_API_KEY:
+            openai_api_key = anthropic_api_key = gemini_api_key = OPENROUTER_API_KEY
 
         # Video mode requires Gemini - 2 variants for comparison
         if input_mode == "video":

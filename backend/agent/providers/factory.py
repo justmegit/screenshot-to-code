@@ -10,9 +10,10 @@ from agent.providers.base import ProviderSession
 from agent.providers.gemini import GeminiProviderSession, serialize_gemini_tools
 from agent.providers.openai import OpenAIProviderSession, serialize_openai_tools
 from agent.tools import canonical_tool_definitions
-from config import REPLICATE_API_KEY
+from config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, REPLICATE_API_KEY
 from fs_logging.agent_runs import AgentRunRecorder
 from llm import ANTHROPIC_MODELS, GEMINI_MODELS, OPENAI_MODELS, Llm
+from openrouter import openrouter_reasoning_effort, openrouter_slug
 from preview_screenshot import is_screenshot_preview_available
 
 
@@ -37,6 +38,22 @@ def create_provider_session(
         # screenshot_preview needs headless Chromium; skip it if it can't launch.
         screenshot_enabled=is_screenshot_preview_available(),
     )
+
+    # OpenRouter fronts all three providers behind the OpenAI-compatible
+    # Responses API, so one key and one session type cover every model.
+    if OPENROUTER_API_KEY:
+        client = AsyncOpenAI(
+            api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL
+        )
+        return OpenAIProviderSession(
+            client=client,
+            model=model,
+            prompt_messages=prompt_messages,
+            tools=serialize_openai_tools(canonical_tools),
+            recorder=recorder,
+            api_name=openrouter_slug(model),
+            reasoning_effort=openrouter_reasoning_effort(model),
+        )
 
     if model in OPENAI_MODELS:
         if not openai_api_key:

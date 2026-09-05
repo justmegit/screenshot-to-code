@@ -163,5 +163,14 @@ def get_openai_api_name(model: Llm) -> str:
     return OPENAI_MODEL_CONFIG[model]["api_name"]
 
 
+def model_base_name(model: Llm) -> str:
+    """The model name without its thinking/effort suffix, as used for pricing."""
+    return model.value.split(" (")[0]
+
+
+def get_openai_api_name_or_none(model: Llm) -> str | None:
+    return OPENAI_MODEL_CONFIG.get(model, {}).get("api_name")
+
+
 def get_openai_reasoning_effort(model: Llm) -> str | None:
     return OPENAI_MODEL_CONFIG.get(model, {}).get("reasoning_effort")

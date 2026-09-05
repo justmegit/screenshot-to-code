@@ -22,7 +22,13 @@ from agent.state import ensure_str
 from agent.tools import CanonicalToolDefinition, ToolCall, parse_json_arguments
 from fs_logging.agent_runs import AgentRunRecorder
 from fs_logging.prompt_reports import PromptReportLogger
-from llm import Llm, get_openai_api_name, get_openai_reasoning_effort
+from llm import (
+    Llm,
+    get_openai_api_name,
+    get_openai_api_name_or_none,
+    model_base_name,
+    get_openai_reasoning_effort,
+)
 
 
 def _convert_message_to_responses_input(
@@ -56,7 +62,9 @@ def _convert_message_to_responses_input(
 
 
 def _get_image_detail_for_model(model: Llm) -> str:
-    if get_openai_api_name(model) in {
+    # Models reached through OpenRouter may not be OpenAI ones, so look the
+    # name up without raising.
+    if get_openai_api_name_or_none(model) in {
         "gpt-5.5",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
@@ -424,16 +432,25 @@ class OpenAIProviderSession(ProviderSession):
         prompt_messages: List[ChatCompletionMessageParam],
         tools: List[Dict[str, Any]],
         recorder: Optional[AgentRunRecorder] = None,
+        api_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         self._client = client
         self._model = model
         self._tools = tools
         self._total_usage = TokenUsage()
         self._recorder = recorder
+        # An api_name means the caller is talking to an OpenAI-compatible
+        # gateway (OpenRouter), where the wire name and the effort come from
+        # the caller because the model may belong to another provider.
+        self._api_name = api_name or get_openai_api_name(model)
+        self._reasoning_effort = (
+            reasoning_effort if api_name else get_openai_reasoning_effort(model)
+        )
         self._prompt_report_logger = PromptReportLogger(
             provider="openai",
             model=model,
-            api_model_name=get_openai_api_name(model),
+            api_model_name=self._api_name,
         )
         image_detail = _get_image_detail_for_model(model)
         self._input_items: List[Dict[str, Any]] = [
@@ -442,7 +459,7 @@ class OpenAIProviderSession(ProviderSession):
         ]
 
     async def stream_turn(self, on_event: EventSink) -> ProviderTurn:
-        model_name = get_openai_api_name(self._model)
+        model_name = self._api_name
         params: Dict[str, Any] = {
             "model": model_name,
             "input": self._input_items,
@@ -453,7 +470,7 @@ class OpenAIProviderSession(ProviderSession):
         }
         if model_name == "gpt-5.4-2026-03-05":
             params["prompt_cache_retention"] = "24h"
-        reasoning_effort = get_openai_reasoning_effort(self._model)
+        reasoning_effort = self._reasoning_effort
         if reasoning_effort:
             params["reasoning"] = {"effort": reasoning_effort, "summary": "auto"}
 
@@ -478,7 +495,7 @@ class OpenAIProviderSession(ProviderSession):
         return turn
 
     def total_cost_usd(self) -> float | None:
-        pricing = MODEL_PRICING.get(get_openai_api_name(self._model))
+        pricing = MODEL_PRICING.get(model_base_name(self._model))
         if pricing is None:
             return None
         return self._total_usage.cost(pricing)
@@ -535,8 +552,8 @@ class OpenAIProviderSession(ProviderSession):
 
     async def close(self) -> None:
         u = self._total_usage
-        model_name = get_openai_api_name(self._model)
-        pricing = MODEL_PRICING.get(model_name)
+        model_name = self._api_name
+        pricing = MODEL_PRICING.get(model_base_name(self._model))
         cost_str = f" cost=${u.cost(pricing):.4f}" if pricing else ""
         cache_hit_rate_str = f" cache_hit_rate={u.cache_hit_rate_percent():.2f}%"
         print(

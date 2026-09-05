@@ -1,6 +1,6 @@
 import os
 
-NUM_VARIANTS = 4
+NUM_VARIANTS = 2
 NUM_VARIANTS_VIDEO = 2
 
 # LLM-related
@@ -8,6 +8,14 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", None)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", None)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", None)
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", None)
+
+# When set, every model is reached through OpenRouter's OpenAI-compatible
+# Responses API instead of the three native SDKs, and this key is the only one
+# needed. See backend/openrouter.py for the model id mapping.
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", None)
+OPENROUTER_BASE_URL = os.environ.get(
+    "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
+)
 
 # Image generation (optional)
 REPLICATE_API_KEY = os.environ.get("REPLICATE_API_KEY", None)
